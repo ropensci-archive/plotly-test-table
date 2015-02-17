@@ -79,7 +79,6 @@ print.commits <- function(commits){
 ### Install ropensci/plotly@SHA1 from github, and run all of the
 ### tests.
 test.commit <- function(SHA1, plotly.pkg=file.path("..", "plotly")){
-  require(parallel)
   require(plotly)
   require(testthat)
   stopifnot(is.character(SHA1))
@@ -151,6 +150,8 @@ test.commit <- function(SHA1, plotly.pkg=file.path("..", "plotly")){
   do.call(rbind, result.list)
 }
 
+require(parallel)
+
 data.dir <- normalizePath("data")
 
 commits <- read.csv("commits.csv", as.is=TRUE)
@@ -162,6 +163,11 @@ for(commit.i in 1:nrow(commits)){
   commits.list[[SHA1]] <- commit.df
 }
 
+## For parallel processing of commits, we would have to setup
+## commit-specific libraries...
+
+##commits.list <- lapply(commits$SHA1, test.commit)
+
 columns.list <- commits.list
 names(columns.list) <- commits$label
 recent.df <- commits.list[[length(columns.list)]]
@@ -172,7 +178,7 @@ td.mat <-
   matrix(NA, nrow(recent.df), length(columns.list))
 rownames(td.mat) <- recent.df$name
 colnames(td.mat) <- names(columns.list)
-png.mat <- td.mat
+png.mat <- big.mat <- td.mat
 for(column.name in names(columns.list)){
   df <- columns.list[[column.name]]
   png.file <- sub(".*plotly-test-table/", "", df$plotly)
@@ -181,6 +187,8 @@ for(column.name in names(columns.list)){
     sprintf('<a href="%s"><img src="%s" /></a>', png.file, thumb.file)
   png.mat[as.character(df$name), column.name] <-
     sprintf('<img src="../%s" />', png.file)
+  big.mat[as.character(df$name), column.name] <-
+    sprintf('<img src="%s" />', png.file)
 }
 library(xtable)
 dir.create("html")
@@ -188,13 +196,22 @@ details.page <- rep(NA, nrow(td.mat))
 names(details.page) <- rownames(td.mat)
 for(test.name in rownames(td.mat)){
   img.tag <- png.mat[test.name, ]
-  df <- data.frame(label=names(img.tags), img.tag)
+  df <- data.frame(label=names(img.tag), img.tag)
   xt <- xtable(t(df))
   html.file <- file.path("html", paste0(test.name, ".html"))
   print(xt, type="html", file=html.file, sanitize.text.function=identity,
         include.rownames=FALSE, include.colnames=FALSE)
   details.page[[test.name]] <- html.file
 }
+## Make big.html which shows big images directly.
+big.df <-
+  data.frame(test=rownames(td.mat),
+             big.mat)
+xt <- xtable(big.df)
+print(xt, type="html", file="big.html", sanitize.text.function=identity,
+      include.rownames=FALSE)
+## Make index.html which shows small -thumb.png images and links to
+## the bigger ones.
 td.df <-
   data.frame(test=sprintf('<a href="%s">%s</a>',
                details.page, rownames(td.mat)),
