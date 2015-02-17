@@ -128,8 +128,10 @@ test.commit <- function(SHA1, plotly.pkg=file.path("..", "plotly")){
     ggplot.dir <- dirname(gg.png.file)
     dir.create(ggplot.dir, showWarnings = FALSE, recursive = TRUE)
     if(!file.exists(gg.png.file)){
-      cat(sprintf("\nggsave(%s)\n", gg.png.file)) 
-      ggsave(gg.png.file, plot=gg, w=7, h=5)
+      cat(sprintf("\npng(%s)\n", gg.png.file)) 
+      png(gg.png.file, width=700, h=500, type="cairo")
+      print(gg)
+      dev.off()
     }
     result.list[[name]] <<-
       data.frame(SHA1, name,
@@ -173,7 +175,7 @@ for(column.name in names(columns.list)){
   df <- columns.list[[column.name]]
   png.file <- sub(".*plotly-test-table/", "", df$plotly)
   thumb.file <- sub(".*plotly-test-table/", "", df$plotly.thumb)
-  td.mat[df$name, column.name] <-
+  td.mat[as.character(df$name), column.name] <-
     sprintf('<a href="%s"><img src="%s" /></a>', png.file, thumb.file)
 }
 library(xtable)
