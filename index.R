@@ -78,55 +78,78 @@ print.commits <- function(commits){
 
 ### Install ropensci/plotly@SHA1 from github, and run all of the
 ### tests.
-test.commit <- function(SHA1, plotly.pkg="~/R/plotly"){
+test.commit <- function(SHA1, plotly.pkg=file.path("..", "plotly")){
   require(parallel)
+  require(plotly)
+  require(testthat)
   stopifnot(is.character(SHA1))
   stopifnot(length(SHA1) == 1)
-  old.wd <- setwd(plotly.pkg)
-  on.exit(setwd(old.wd))
-  old.SHA1 <- system("git rev-parse HEAD", intern=TRUE)
-  on.exit({
-    system(paste("git checkout", old.SHA1))
-    setwd(old.wd)
-  })
-  cmd <- paste("git checkout", SHA1)
-  system(cmd)
-  devtools::load_all(".")
+  thumb <- function(png.file){
+    if(file.exists(png.file)){
+      thumb.file <- sub("[.]png$", "-thumb.png", png.file)
+      if(!file.exists(thumb.file)){
+        ##mcparallel({
+          cmd <- paste("convert", png.file, "-resize 230", thumb.file)
+          cat("\n", cmd, "\n", sep="")
+          system(cmd)
+        ##})
+      }
+      thumb.file
+    }else{
+      NA
+    }
+  }
+  devtools::install_github(paste0("ropensci/plotly@", SHA1))
   ## This is run from within the plotly/tests/testthat directory, so
   ## data.dir should be a full path.
   result.list <- list()
-  save_outputs <- function(gg, name, data.dir="~/R/plotly-test-table/data") {
+  save_outputs <- function(gg, name, ...) {
     filesystem_name <- gsub(' ', '-', name)
     fs.png <- paste0(filesystem_name, ".png")
     plotly.png.file <- file.path(data.dir, SHA1, fs.png)
     SHA1.dir <- dirname(plotly.png.file)
     dir.create(SHA1.dir, showWarnings = FALSE, recursive = TRUE)
-    if(!file.exists(plotly.png.file))mcparallel({
-      py <- plotly("TestBot", "r1neazxo9w")
-      kwargs <-
-        list(filename=paste0("ggplot2/", name),
-             fileopt="overwrite",
-             auto_open=FALSE)
-      u <- py$ggplotly(gg, kwargs=kwargs)
-      plotly.png.url <- paste0(u$response$url, ".png")
-      cat(sprintf("downloading %s -> %s\n", plotly.png.url, plotly.png.file))
-      pngdata <- getURLContent(plotly.png.url)
-      writeBin(as.raw(pngdata), plotly.png.file)
-    })
+    if(!file.exists(plotly.png.file)){
+      ##mcparallel({
+        py <- plotly("TestBot", "r1neazxo9w")
+        kwargs <-
+          list(filename=paste0("ggplot2/", name),
+               fileopt="overwrite",
+               auto_open=FALSE)
+        u <- py$ggplotly(gg, kwargs=kwargs)
+        plotly.png.url <- paste0(u$response$url, ".png")
+        cat(sprintf("\ndownloading %s -> %s\n",
+                    plotly.png.url, plotly.png.file))
+        pngdata <- getURLContent(plotly.png.url)
+        writeBin(as.raw(pngdata), plotly.png.file)
+      ##})
+    }
     gg.png.file <- file.path(data.dir, "ggplot2", fs.png)
     ggplot.dir <- dirname(gg.png.file)
     dir.create(ggplot.dir, showWarnings = FALSE, recursive = TRUE)
     if(!file.exists(gg.png.file)){
+      cat(sprintf("\nggsave(%s)\n", gg.png.file)) 
       ggsave(gg.png.file, plot=gg, w=7, h=5)
     }
     result.list[[name]] <<-
-      data.frame(SHA1, name, plotly=plotly.png.file, ggplot2=gg.png.file)
+      data.frame(SHA1, name,
+                 plotly=plotly.png.file,
+                 ggplot2=gg.png.file,
+                 plotly.thumb=thumb(plotly.png.file),
+                 ggplot2.thumb=thumb(gg.png.file))
   }
-  require(testthat)
   e <- new.env()
-  test_dir(file.path("tests", "testthat"), env=e)
+  testthat.dir <- file.path(plotly.pkg, "tests", "testthat")
+  tryCatch({
+    test_dir(testthat.dir, env=e)
+  }, error=function(e){
+    cat("\nError in testthat::test_dir\n")
+    print(e)
+  })
   do.call(rbind, result.list)
 }
+
+data.dir <- normalizePath("data")
 
 commits <- read.csv("commits.csv", as.is=TRUE)
 
@@ -140,15 +163,18 @@ for(commit.i in 1:nrow(commits)){
 columns.list <- commits.list
 names(columns.list) <- commits$label
 recent.df <- commits.list[[length(columns.list)]]
-recent.df$plotly <- recent.df$ggplot
+recent.df$plotly <- recent.df$ggplot2
+recent.df$plotly.thumb <- recent.df$ggplot2.thumb
 columns.list$ggplot2 <- recent.df
 td.mat <- matrix(NA, nrow(recent.df), length(columns.list))
 rownames(td.mat) <- recent.df$name
 colnames(td.mat) <- names(columns.list)
 for(column.name in names(columns.list)){
   df <- columns.list[[column.name]]
-  no.prefix <- sub("~/R/plotly-test-table/", "", df$plotly)
-  td.mat[df$name, column.name] <- sprintf('<img width=200 src="%s" />', no.prefix)
+  png.file <- sub(".*plotly-test-table/", "", df$plotly)
+  thumb.file <- sub(".*plotly-test-table/", "", df$plotly.thumb)
+  td.mat[df$name, column.name] <-
+    sprintf('<a href="%s"><img src="%s" /></a>', png.file, thumb.file)
 }
 library(xtable)
 xt <- xtable(td.mat)
