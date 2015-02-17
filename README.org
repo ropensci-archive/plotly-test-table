@@ -1,4 +1,5 @@
-This repository hosts the [[http://ropensci.github.io/plotly-test-table/][ggplotly test table]] in the [[https://github.com/ropensci/plotly-test-table/tree/gh-pages][gh-pages]] branch.
+This repository hosts the [[http://ropensci.github.io/plotly-test-table/][ggplotly test table]] and the [[http://ropensci.github.io/plotly-test-table/big.html][big test table]]
+in the [[https://github.com/ropensci/plotly-test-table/tree/gh-pages][gh-pages]] branch.
 
 To setup your machine for building the ggplotly test table, first make
 sure that the plotly package/repository is in the same directory as
