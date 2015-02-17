@@ -1,0 +1,1 @@
+This repository hosts the ggplotly test table in the gh-pages branch.
