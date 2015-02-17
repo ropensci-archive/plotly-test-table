@@ -12,6 +12,7 @@ cd plotly-test-table
 git checkout gh-pages
 cat SHA1,label >> commits.csv
 make
+git push origin gh-pages
 #+END_SRC
 
 Make sure that the plotly package/repository is in the same directory
