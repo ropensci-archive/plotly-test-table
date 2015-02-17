@@ -2,8 +2,9 @@ This repository hosts the [[http://ropensci.github.io/plotly-test-table/][ggplot
 
 To add a column to the table,
 
-```
+#+BEGIN_SRC shell
 git checkout gh-pages
 cat SHA1,label >> commits.csv
 R --no-save < index.R
-```
+#+END_SRC
+
