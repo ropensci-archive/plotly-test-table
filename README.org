@@ -32,6 +32,6 @@ re-made). Finally, add the new PNG files and push to the gh-pages
 branch.
 
 #+BEGIN_SRC shell
-git add data/*/*.png
+git add data/*/*.png html/*.html
 git push origin gh-pages
 #+END_SRC
