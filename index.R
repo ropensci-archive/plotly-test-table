@@ -168,16 +168,37 @@ recent.df <- commits.list[[length(columns.list)]]
 recent.df$plotly <- recent.df$ggplot2
 recent.df$plotly.thumb <- recent.df$ggplot2.thumb
 columns.list$ggplot2 <- recent.df
-td.mat <- matrix(NA, nrow(recent.df), length(columns.list))
+td.mat <- 
+  matrix(NA, nrow(recent.df), length(columns.list))
 rownames(td.mat) <- recent.df$name
 colnames(td.mat) <- names(columns.list)
+png.mat <- td.mat
 for(column.name in names(columns.list)){
   df <- columns.list[[column.name]]
   png.file <- sub(".*plotly-test-table/", "", df$plotly)
   thumb.file <- sub(".*plotly-test-table/", "", df$plotly.thumb)
   td.mat[as.character(df$name), column.name] <-
     sprintf('<a href="%s"><img src="%s" /></a>', png.file, thumb.file)
+  png.mat[as.character(df$name), column.name] <-
+    sprintf('<img src="../%s" />', png.file)
 }
 library(xtable)
-xt <- xtable(td.mat)
-print(xt, type="html", file="index.html", sanitize.text.function=identity)
+dir.create("html")
+details.page <- rep(NA, nrow(td.mat))
+names(details.page) <- rownames(td.mat)
+for(test.name in rownames(td.mat)){
+  img.tag <- png.mat[test.name, ]
+  df <- data.frame(label=names(img.tags), img.tag)
+  xt <- xtable(t(df))
+  html.file <- file.path("html", paste0(test.name, ".html"))
+  print(xt, type="html", file=html.file, sanitize.text.function=identity,
+        include.rownames=FALSE, include.colnames=FALSE)
+  details.page[[test.name]] <- html.file
+}
+td.df <-
+  data.frame(test=sprintf('<a href="%s">%s</a>',
+               details.page, rownames(td.mat)),
+             td.mat)
+xt <- xtable(td.df)
+print(xt, type="html", file="index.html", sanitize.text.function=identity,
+      include.rownames=FALSE)
