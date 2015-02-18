@@ -1,9 +1,12 @@
+require(plotly)
 require(testthat)
 require(parallel)
 
 data.dir <- normalizePath("data")
 
-commits <- read.csv("commits.csv", as.is=TRUE)
+## This file specifies the list of all the versions of the ggplotly
+## code (not testing code) for which we want to run the current tests.
+code_commits <- read.csv("code_commits.csv", as.is=TRUE)
 
 ## Parse the first occurance of pattern from each of several strings
 ## using (named) capturing regular expressions, returning a matrix
@@ -129,7 +132,8 @@ test.ggplots <- function(test.file){
   as.character(do.call(c, result.list))
 }
 
-
+## Assume plotly repos is in the same directory as plotly-test-table
+## repos.
 plotly.pkg <- file.path("..", "plotly")
 testthat.dir <- file.path(plotly.pkg, "tests", "testthat")
 test.files <- Sys.glob(file.path(testthat.dir, "test-*.R"))
@@ -154,16 +158,12 @@ for(test.file in test.files){
 ## find out which plots are produced.
 save(testfileDB, file="testfileDB.RData")
 
-### Install ropensci/plotly@SHA1 from github, and run all of the
-### tests.
-test.commit <- function(SHA1){
-  require(plotly)
-  stopifnot(is.character(SHA1))
-  stopifnot(length(SHA1) == 1)
-  devtools::install_github(paste0("ropensci/plotly@", SHA1))
+### After having installed the version of plotly specified in
+### code_commits.csv, and run all of the tests and save the generated
+### plotlys to disk.
+test.plotlys <- function(test.file){
   ## This is run from within the plotly/tests/testthat directory, so
   ## data.dir should be a full path.
-  result.list <- list()
   save_outputs <- function(gg, name, ...) {
     filesystem_name <- gsub(' ', '-', name)
     fs.png <- paste0(filesystem_name, ".png")
@@ -185,37 +185,43 @@ test.commit <- function(SHA1){
         writeBin(as.raw(pngdata), plotly.png.file)
       ##})
     }
-    gg.png.file <- file.path(data.dir, "ggplot2", fs.png)
-    ggplot.dir <- dirname(gg.png.file)
-    dir.create(ggplot.dir, showWarnings = FALSE, recursive = TRUE)
-    if(!file.exists(gg.png.file)){
-      cat(sprintf("\npng(%s)\n", gg.png.file)) 
-      png(gg.png.file, width=700, h=500, type="cairo")
-      print(gg)
-      dev.off()
-    }
-    result.list[[name]] <<-
-      data.frame(SHA1, name,
-                 plotly=plotly.png.file,
-                 ggplot2=gg.png.file,
-                 plotly.thumb=thumb(plotly.png.file),
-                 ggplot2.thumb=thumb(gg.png.file))
   }
   e <- new.env()
   tryCatch({
-    test_dir(testthat.dir, env=e)
+    test_file(test.file, env=e)
   }, error=function(e){
-    cat("\nError in testthat::test_dir\n")
+    cat("\nError in testthat::test_file\n")
     print(e)
   })
-  do.call(rbind, result.list)
 }
 
+## Check to see if we need to run any of the tests, by checking to see
+## if the PNG files exist. If not, run the test and make the plotlys.
+test.info <- testfileDB[[test.SHA1]]
 commits.list <- list()
-for(commit.i in 1:nrow(commits)){
-  SHA1 <- commits$SHA1[commit.i]
-  commit.df <- test.commit(SHA1)
-  commits.list[[SHA1]] <- commit.df
+for(commit.i in 1:nrow(code_commits)){
+  code_commit <- code_commits[commit.i, ]
+  SHA1 <- code_commit$SHA1
+  commit.dir <- file.path("data", SHA1)
+  commit.files <- dir(commit.dir)
+  to.run <- list()
+  for(test.base in names(test.info)){
+    test.names <- test.info[[test.base]]
+    if(length(test.names)){
+      test.pngs <- paste0(test.names, ".png")
+      if(!all(test.pngs %in% commit.files)){
+        to.run[[test.base]] <- test.base
+      }
+    }
+  }
+  if(length(to.run)){
+    install.str <- paste0(code_commit$user, "/plotly@", SHA1)
+    devtools::install_github(install.str)
+  }
+  for(test.base in to.run){
+    test.file <- file.path(testthat.dir, test.base)
+    test.plotlys(test.file)
+  }
 }
 
 ## For parallel processing of commits, we would have to setup
