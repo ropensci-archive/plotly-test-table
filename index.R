@@ -1,3 +1,10 @@
+require(testthat)
+require(parallel)
+
+data.dir <- normalizePath("data")
+
+commits <- read.csv("commits.csv", as.is=TRUE)
+
 ## Parse the first occurance of pattern from each of several strings
 ## using (named) capturing regular expressions, returning a matrix
 ## (with column names).
@@ -76,28 +83,83 @@ print.commits <- function(commits){
   print(as.data.frame(commits)[, c("gmt.time", "abbrev")])
 }
 
+### Use convert on the command line to convert file.png to
+### file-thumb.png.
+thumb <- function(png.file){
+  if(file.exists(png.file)){
+    thumb.file <- sub("[.]png$", "-thumb.png", png.file)
+    if(!file.exists(thumb.file)){
+      ##mcparallel({
+      cmd <- paste("convert", png.file, "-resize 230", thumb.file)
+      cat("\n", cmd, "\n", sep="")
+      system(cmd)
+      ##})
+    }
+    thumb.file
+  }else{
+    NA
+  }
+}
+
+### Run all tests in test.file, defining save_outputs in a way which
+### just saves ggplots.
+test.ggplots <- function(test.file){
+  result.list <- list()
+  save_outputs <- function(gg, name, ...) {
+    filesystem_name <- gsub(' ', '-', name)
+    fs.png <- paste0(filesystem_name, ".png")
+    gg.png.file <- file.path(data.dir, "ggplot2", fs.png)
+    ggplot.dir <- dirname(gg.png.file)
+    dir.create(ggplot.dir, showWarnings = FALSE, recursive = TRUE)
+    if(!file.exists(gg.png.file)){
+      cat(sprintf("\npng(%s)\n", gg.png.file)) 
+      png(gg.png.file, width=700, h=500, type="cairo")
+      print(gg)
+      dev.off()
+    }
+    result.list[[name]] <<- name
+  }
+  e <- new.env()
+  tryCatch({
+    testthat:::test_file(test.file, env=e)
+  }, error=function(e){
+    cat("\nError in testthat::test_file\n")
+    print(e)
+  })
+  as.character(do.call(c, result.list))
+}
+
+
+plotly.pkg <- file.path("..", "plotly")
+testthat.dir <- file.path(plotly.pkg, "tests", "testthat")
+test.files <- Sys.glob(file.path(testthat.dir, "test-*.R"))
+
+## get the SHA1 of the tests on the current branch.
+old.wd <- setwd(testthat.dir)
+test.SHA1 <- system("git rev-parse HEAD", intern=TRUE)
+setwd(old.wd)
+
+## Load database which records test SHA1, test files, and test names.
+load("testfileDB.RData")
+
+## For every test-*.R file, run it and see what ggplots are produced.
+for(test.file in test.files){
+  test.base <- basename(test.file)
+  if(is.null(testfileDB[[test.SHA1]][[test.base]])){
+    testfileDB[[test.SHA1]][[test.base]] <- test.ggplots(test.file)
+  }
+}
+
+## Save the testfileDB to avoid having to re-run these tests just to
+## find out which plots are produced.
+save(testfileDB, file="testfileDB.RData")
+
 ### Install ropensci/plotly@SHA1 from github, and run all of the
 ### tests.
-test.commit <- function(SHA1, plotly.pkg=file.path("..", "plotly")){
+test.commit <- function(SHA1){
   require(plotly)
-  require(testthat)
   stopifnot(is.character(SHA1))
   stopifnot(length(SHA1) == 1)
-  thumb <- function(png.file){
-    if(file.exists(png.file)){
-      thumb.file <- sub("[.]png$", "-thumb.png", png.file)
-      if(!file.exists(thumb.file)){
-        ##mcparallel({
-          cmd <- paste("convert", png.file, "-resize 230", thumb.file)
-          cat("\n", cmd, "\n", sep="")
-          system(cmd)
-        ##})
-      }
-      thumb.file
-    }else{
-      NA
-    }
-  }
   devtools::install_github(paste0("ropensci/plotly@", SHA1))
   ## This is run from within the plotly/tests/testthat directory, so
   ## data.dir should be a full path.
@@ -140,7 +202,6 @@ test.commit <- function(SHA1, plotly.pkg=file.path("..", "plotly")){
                  ggplot2.thumb=thumb(gg.png.file))
   }
   e <- new.env()
-  testthat.dir <- file.path(plotly.pkg, "tests", "testthat")
   tryCatch({
     test_dir(testthat.dir, env=e)
   }, error=function(e){
@@ -149,12 +210,6 @@ test.commit <- function(SHA1, plotly.pkg=file.path("..", "plotly")){
   })
   do.call(rbind, result.list)
 }
-
-require(parallel)
-
-data.dir <- normalizePath("data")
-
-commits <- read.csv("commits.csv", as.is=TRUE)
 
 commits.list <- list()
 for(commit.i in 1:nrow(commits)){
