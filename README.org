@@ -23,7 +23,7 @@ do
 #+BEGIN_SRC shell
 cd plotly-test-table
 git checkout gh-pages
-cat $COMMIT_SHA1,$COLUMN_NAME_TO_DISPLAY >> commits.csv 
+echo $GITHUB_USER,$COMMIT_SHA1,$COLUMN_NAME_TO_DISPLAY >> commits.csv 
 make
 #+END_SRC
 
@@ -33,6 +33,6 @@ re-made). Finally, add the new PNG files and push to the gh-pages
 branch.
 
 #+BEGIN_SRC shell
-git add data/*/*.png html/*.html
+git add data/*/*.png tables/*/*.html
 git push origin gh-pages
 #+END_SRC
