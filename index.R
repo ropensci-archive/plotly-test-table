@@ -89,6 +89,8 @@ print.commits <- function(commits){
 ### Use convert on the command line to convert file.png to
 ### file-thumb.png.
 thumb <- function(png.file){
+  stopifnot(is.character(png.file))
+  stopifnot(length(png.file) == 1)
   if(file.exists(png.file)){
     thumb.file <- sub("[.]png$", "-thumb.png", png.file)
     if(!file.exists(thumb.file)){
@@ -198,7 +200,6 @@ test.plotlys <- function(test.file){
 ## Check to see if we need to run any of the tests, by checking to see
 ## if the PNG files exist. If not, run the test and make the plotlys.
 test.info <- testfileDB[[test.SHA1]]
-commits.list <- list()
 for(commit.i in 1:nrow(code_commits)){
   code_commit <- code_commits[commit.i, ]
   SHA1 <- code_commit$SHA1
@@ -224,59 +225,79 @@ for(commit.i in 1:nrow(code_commits)){
   }
 }
 
-## For parallel processing of commits, we would have to setup
-## commit-specific libraries...
-
-##commits.list <- lapply(commits$SHA1, test.commit)
-
-columns.list <- commits.list
-names(columns.list) <- commits$label
-recent.df <- commits.list[[length(columns.list)]]
-recent.df$plotly <- recent.df$ggplot2
-recent.df$plotly.thumb <- recent.df$ggplot2.thumb
-columns.list$ggplot2 <- recent.df
+## Make test table with one row for every element of current
+## testfileDB (test.info) and one column for every line in
+## code_commits.csv.
+test.names <- as.character(unlist(test.info))
+rev.commits <- code_commits[nrow(code_commits):1, ]
+columns.df <- with(rev.commits, {
+  data.frame(dir=c("ggplot2", SHA1), label=c("ggplot2", label))
+})
 td.mat <- 
-  matrix(NA, nrow(recent.df), length(columns.list))
-rownames(td.mat) <- recent.df$name
-colnames(td.mat) <- names(columns.list)
+  matrix(NA, length(test.names), nrow(columns.df))
+rownames(td.mat) <- test.names
+colnames(td.mat) <- columns.df$label
 png.mat <- big.mat <- td.mat
-for(column.name in names(columns.list)){
-  df <- columns.list[[column.name]]
-  png.file <- sub(".*plotly-test-table/", "", df$plotly)
-  thumb.file <- sub(".*plotly-test-table/", "", df$plotly.thumb)
-  td.mat[as.character(df$name), column.name] <-
+
+table.dir <- file.path("tables", test.SHA1)
+dir.create(table.dir, recursive=TRUE)
+## First go to the directory where we will be making the table, so
+## thumb() works fine.
+old.wd <- setwd(table.dir)
+for(column.i in 1:nrow(columns.df)){
+  column.info <- columns.df[column.i, ]
+  png.file <-
+    file.path("..", "..", "data", column.info$dir, paste0(test.names, ".png"))
+  thumb.file <- png.file
+  for(thumb.i in seq_along(thumb.file)){
+    thumb.file[[thumb.i]] <- thumb(thumb.file[[thumb.i]])
+  }
+  td.mat[, column.i] <-
     sprintf('<a href="%s"><img src="%s" /></a>', png.file, thumb.file)
-  png.mat[as.character(df$name), column.name] <-
-    sprintf('<img src="../%s" />', png.file)
-  big.mat[as.character(df$name), column.name] <-
+  png.mat[, column.i] <-
+    sprintf('<img src="%s" />', png.file)
+  big.mat[, column.i] <-
     sprintf('<img src="%s" />', png.file)
 }
+setwd(old.wd)
+
 library(xtable)
-dir.create("html")
-details.page <- rep(NA, nrow(td.mat))
-names(details.page) <- rownames(td.mat)
 for(test.name in rownames(td.mat)){
   img.tag <- png.mat[test.name, ]
   df <- data.frame(label=names(img.tag), img.tag)
   xt <- xtable(t(df))
-  html.file <- file.path("html", paste0(test.name, ".html"))
+  html.file <- file.path(table.dir, paste0(test.name, ".html"))
   print(xt, type="html", file=html.file, sanitize.text.function=identity,
         include.rownames=FALSE, include.colnames=FALSE)
-  details.page[[test.name]] <- html.file
 }
 ## Make big.html which shows big images directly.
 big.df <-
   data.frame(test=rownames(td.mat),
              big.mat)
 xt <- xtable(big.df)
-print(xt, type="html", file="big.html", sanitize.text.function=identity,
+print(xt, type="html", file=file.path(table.dir, "big.html"),
+      sanitize.text.function=identity,
       include.rownames=FALSE)
 ## Make index.html which shows small -thumb.png images and links to
 ## the bigger ones.
 td.df <-
-  data.frame(test=sprintf('<a href="%s">%s</a>',
-               details.page, rownames(td.mat)),
+  data.frame(test=sprintf('<a href="%s.html">%s</a>',
+               test.names, test.names),
              td.mat)
 xt <- xtable(td.df)
-print(xt, type="html", file="index.html", sanitize.text.function=identity,
+print(xt, type="html", file=file.path(table.dir, "index.html"),
+      sanitize.text.function=identity,
       include.rownames=FALSE)
+
+table.dirs <- file.info(Sys.glob(file.path("tables", "*")))
+sorted.tables <- table.dirs[order(table.dirs$mtime, decreasing = TRUE), ]
+mtime <- sorted.tables[, "mtime"]
+index <- paste0(rownames(sorted.tables), "/index.html")
+thumbs <- sprintf('<a href="%s">%s</a>', index, index)
+index.big <- paste0(rownames(sorted.tables), "/big.html")
+big <- sprintf('<a href="%s">%s</a>', index.big, index.big)
+df <- data.frame(mtime=format(mtime), thumbs, big)
+xt <- xtable(df)
+## TODO: maybe add git commit log message to this table.
+print(xt, type="html", file="index.html", include.rownames=FALSE,
+      sanitize.text.function=identity)

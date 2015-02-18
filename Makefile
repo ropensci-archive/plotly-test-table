@@ -1,4 +1,4 @@
-index.html: index.R commits.csv
+index.html: index.R code_commits.csv
 	R --vanilla < $<
 
 
