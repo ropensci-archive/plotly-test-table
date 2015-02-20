@@ -176,7 +176,7 @@ test.plotlys <- function(test.file){
       ##mcparallel({
         py <- plotly("TestBot", "r1neazxo9w")
         kwargs <-
-          list(filename=paste0("ggplot2/", name),
+          list(filename=paste0("ggplot2/", SHA1, "/", name),
                fileopt="overwrite",
                auto_open=FALSE)
         u <- py$ggplotly(gg, kwargs=kwargs)
