@@ -22,7 +22,7 @@ do
 #+BEGIN_SRC shell
 cd plotly-test-table
 git checkout gh-pages
-echo $GITHUB_USER,$COMMIT_SHA1,$COLUMN_NAME_TO_DISPLAY >> commits.csv 
+echo $GITHUB_USER,$COMMIT_SHA1,$COLUMN_NAME_TO_DISPLAY >> code_commits.csv 
 make
 #+END_SRC
 
