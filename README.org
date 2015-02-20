@@ -1,7 +1,6 @@
-This repository hosts the [[http://ropensci.github.io/plotly-test-table/][ggplotly test table]] and the [[http://ropensci.github.io/plotly-test-table/big.html][big test table]]
-in the [[https://github.com/ropensci/plotly-test-table/tree/gh-pages][gh-pages]] branch.
+This repository hosts the [[http://ropensci.github.io/plotly-test-table/][ggplotly test tables]] in the [[https://github.com/ropensci/plotly-test-table/tree/gh-pages][gh-pages]] branch.
 
-To setup your machine for building the ggplotly test table, first make
+To setup your machine for building a ggplotly test table, first make
 sure that the plotly package/repository is in the same directory as
 the plotly-test-table repository. For example, I keep both under
 =~/R=.
@@ -34,5 +33,12 @@ branch.
 
 #+BEGIN_SRC shell
 git add data/*/*.png tables/*/*.html
+git commit -a -m 'some message'
 git push origin gh-pages
+#+END_SRC
+
+Note the last 3 git operations can be accomplished via
+
+#+BEGIN_SRC shell
+./add-all-commit-push.sh
 #+END_SRC
