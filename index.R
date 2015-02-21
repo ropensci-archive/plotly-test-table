@@ -151,7 +151,7 @@ load("testfileDB.RData")
 ## For every test-*.R file, run it and see what ggplots are produced.
 for(test.file in test.files){
   test.base <- basename(test.file)
-  if(is.null(testfileDB[[test.SHA1]][[test.base]])){
+  if(!test.base %in% names(testfileDB[[test.SHA1]])){
     testfileDB[[test.SHA1]][[test.base]] <- test.ggplots(test.file)
   }
 }
