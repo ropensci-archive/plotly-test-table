@@ -6,7 +6,7 @@ data.dir <- normalizePath("data")
 
 ## This file specifies the list of all the versions of the ggplotly
 ## code (not testing code) for which we want to run the current tests.
-code_commits <- read.csv("code_commits.csv", as.is=TRUE)
+code_commits <- read.csv("code_commits.csv", as.is=TRUE, comment.char="#")
 
 ## Parse the first occurance of pattern from each of several strings
 ## using (named) capturing regular expressions, returning a matrix
