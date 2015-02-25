@@ -32,6 +32,34 @@ str_match_perl <- function(string,pattern){
   result
 }
 
+## Parse several occurances of pattern from each of several strings
+## using (named) capturing regular expressions, returning a list of
+## matrices (with column names).
+str_match_all_perl <- function(string,pattern){
+  stopifnot(is.character(string))
+  stopifnot(is.character(pattern))
+  stopifnot(length(pattern)==1)
+  parsed <- gregexpr(pattern,string,perl=TRUE)
+  lapply(seq_along(parsed),function(i){
+    r <- parsed[[i]]
+    full <- substring(string[i],r,r+attr(r,"match.length")-1)
+    starts <- attr(r,"capture.start")
+    if(is.null(starts)){
+      m <- cbind(full)
+      colnames(m) <- ""
+      m
+    }else{
+      if(r[1]==-1)return(matrix(nrow=0,ncol=1+ncol(starts)))
+      names <- attr(r,"capture.names")
+      lengths <- attr(r,"capture.length")
+      subs <- substring(string[i],starts,starts+lengths-1)
+      m <- matrix(c(full,subs),ncol=length(names)+1)
+      colnames(m) <- c("",names)
+      m
+    }
+  })
+}
+
 ### Named capture regular expression for parsing git log
 ### --pretty=format:'%H %ci %s' vis str_match_perl.
 commit.line.pattern <-
@@ -293,11 +321,24 @@ table.dirs <- file.info(Sys.glob(file.path("tables", "*")))
 sorted.tables <- table.dirs[order(table.dirs$mtime, decreasing = TRUE), ]
 mtime <- sorted.tables[, "mtime"]
 index <- paste0(rownames(sorted.tables), "/index.html")
-thumbs <- sprintf('<a href="%s">%s</a>', index, index)
+th.pattern <-
+  paste0("<TH> ",
+         "(?<label>[^ <]+)")
+column.labels <- c()
+for(index.file in index){
+  ilines <- readLines(index.file)
+  th.line <- grep("<TH>", ilines, value=TRUE)
+  label.mat <- str_match_all_perl(th.line, th.pattern)[[1]]
+  label <- label.mat[-1, "label"]
+  label <- label[label != "ggplot2"]
+  column.labels[[index.file]] <- paste(label, collapse = "<br />")
+}
+thumbs <- sprintf('<a href="%s">thumbs</a>', index)
 index.big <- paste0(rownames(sorted.tables), "/big.html")
-big <- sprintf('<a href="%s">%s</a>', index.big, index.big)
-df <- data.frame(mtime=format(mtime), thumbs, big)
+big <- sprintf('<a href="%s">big</a>', index.big)
+df <- data.frame(mtime=format(mtime), column.labels, thumbs, big)
 xt <- xtable(df)
+
 ## TODO: maybe add git commit log message to this table.
 print(xt, type="html", file="index.html", include.rownames=FALSE,
       sanitize.text.function=identity)
