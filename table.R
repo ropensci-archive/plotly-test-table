@@ -180,11 +180,18 @@ setwd(old.wd)
 ## Load database which records test SHA1, test files, and test names.
 load("testfileDB.RData")
 
+## Need to initialize elements as lists, in case there are single
+## elements in the result of test.ggplots.
+if(is.null(testfileDB[[test.SHA1]])){
+  testfileDB[[test.SHA1]] <- list()
+}
+
 ## For every test-*.R file, run it and see what ggplots are produced.
 for(test.file in test.files){
   test.base <- basename(test.file)
   if(is.null(testfileDB[[test.SHA1]][[test.base]])){
-    testfileDB[[test.SHA1]][[test.base]] <- test.ggplots(test.file)
+    result <- test.ggplots(test.file)
+    testfileDB[[test.SHA1]][[test.base]] <- result
   }
 }
 
@@ -323,7 +330,6 @@ print(xt, type="html", file=file.path(table.dir, "index.html"),
 
 table.SHA1 <- dir("tables")
 table.commits <- all.commits[table.SHA1, ]
-table.dirs <- file.info(Sys.glob(file.path("tables", "*")))
 index <- paste0("tables/", table.SHA1, "/index.html")
 th.pattern <-
   paste0("<TH> ",
@@ -337,13 +343,21 @@ for(index.file in index){
   label <- label[label != "ggplot2"]
   column.labels[[index.file]] <- paste(label, collapse = "<br />")
 }
-thumbs <- sprintf('<a href="%s">thumbs</a>', index)
+table.commits$column.labels <- column.labels
+table.commits$thumbs <- sprintf('<a href="%s">thumbs</a>', index)
 index.big <- paste0("tables/", table.SHA1, "/big.html")
-big <- sprintf('<a href="%s">big</a>', index.big)
-df <- data.frame(commit.gmt.time=format(table.commits$gmt.time),
-                 column.labels, thumbs, big,
-                 commit.subject=table.commits$subject)
-xt <- xtable(df)
+table.commits$big <- sprintf('<a href="%s">big</a>', index.big)
+table.commits$commit.gmt.time <- format(table.commits$gmt.time)
+table.commits$commit.subject <- table.commits$subject
+table.commits
+df <- data.frame(table.commits)[, c("commit.gmt.time",
+                        "column.labels",
+                        "thumbs", "big",
+                        "commit.subject")]
+
+## Sort table so that the most recent commit is on top.
+ord <- order(table.commits$gmt.time, decreasing = TRUE)
+xt <- xtable(df[ord, ])
 
 print(xt, type="html", file="table.html", include.rownames=FALSE,
       sanitize.text.function=identity)
