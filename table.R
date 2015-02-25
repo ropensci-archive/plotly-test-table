@@ -168,9 +168,13 @@ plotly.pkg <- file.path("..", "plotly")
 testthat.dir <- file.path(plotly.pkg, "tests", "testthat")
 test.files <- Sys.glob(file.path(testthat.dir, "test-*.R"))
 
-## get the SHA1 of the tests on the current branch.
+## get the SHA1 of the tests on the current branch; and the SHA1,
+## time, and subjects of all commits.
 old.wd <- setwd(testthat.dir)
 test.SHA1 <- system("git rev-parse HEAD", intern=TRUE)
+all.cmd <- "git log --pretty=format:'%H %ci %s' --all"
+all.txt <- system(all.cmd, intern=TRUE)
+all.commits <- commits(all.txt)
 setwd(old.wd)
 
 ## Load database which records test SHA1, test files, and test names.
@@ -317,10 +321,10 @@ print(xt, type="html", file=file.path(table.dir, "index.html"),
       sanitize.text.function=identity,
       include.rownames=FALSE)
 
+table.SHA1 <- dir("tables")
+table.commits <- all.commits[table.SHA1, ]
 table.dirs <- file.info(Sys.glob(file.path("tables", "*")))
-sorted.tables <- table.dirs[order(table.dirs$mtime, decreasing = TRUE), ]
-mtime <- sorted.tables[, "mtime"]
-index <- paste0(rownames(sorted.tables), "/index.html")
+index <- paste0("tables/", table.SHA1, "/index.html")
 th.pattern <-
   paste0("<TH> ",
          "(?<label>[^ <]+)")
@@ -334,11 +338,12 @@ for(index.file in index){
   column.labels[[index.file]] <- paste(label, collapse = "<br />")
 }
 thumbs <- sprintf('<a href="%s">thumbs</a>', index)
-index.big <- paste0(rownames(sorted.tables), "/big.html")
+index.big <- paste0("tables/", table.SHA1, "/big.html")
 big <- sprintf('<a href="%s">big</a>', index.big)
-df <- data.frame(mtime=format(mtime), column.labels, thumbs, big)
+df <- data.frame(commit.gmt.time=format(table.commits$gmt.time),
+                 column.labels, thumbs, big,
+                 commit.subject=table.commits$subject)
 xt <- xtable(df)
 
-## TODO: maybe add git commit log message to this table.
-print(xt, type="html", file="index.html", include.rownames=FALSE,
+print(xt, type="html", file="table.html", include.rownames=FALSE,
       sanitize.text.function=identity)
