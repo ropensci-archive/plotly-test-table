@@ -332,12 +332,12 @@ table.SHA1 <- dir("tables")
 table.commits <- all.commits[table.SHA1, ]
 index <- paste0("tables/", table.SHA1, "/index.html")
 th.pattern <-
-  paste0("<TH> ",
+  paste0("<[tT][hH]> ",
          "(?<label>[^ <]+)")
 column.labels <- c()
 for(index.file in index){
   ilines <- readLines(index.file)
-  th.line <- grep("<TH>", ilines, value=TRUE)
+  th.line <- grep("<[tT][hH]>", ilines, value=TRUE)
   label.mat <- str_match_all_perl(th.line, th.pattern)[[1]]
   label <- label.mat[-1, "label"]
   label <- label[label != "ggplot2"]
