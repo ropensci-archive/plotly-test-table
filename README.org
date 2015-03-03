@@ -16,8 +16,7 @@ git clone git@github.com:ropensci/plotly-test-table.git
 
 Note that I check out the plotly branch with most complete testhat
 unit tests, which will be run for several different versions of the
-ggplotly source code. To add a commit column and re-build the table,
-do
+ggplotly source code. To add a commit column and re-build the table:
 
 #+BEGIN_SRC shell
 cd plotly-test-table
