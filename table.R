@@ -211,20 +211,29 @@ test.plotlys <- function(test.file){
     plotly.png.file <- file.path(data.dir, SHA1, fs.png)
     SHA1.dir <- dirname(plotly.png.file)
     dir.create(SHA1.dir, showWarnings = FALSE, recursive = TRUE)
-    if(!file.exists(plotly.png.file)){
-      ##mcparallel({
-        py <- plotly("TestBot", "r1neazxo9w")
-        kwargs <-
-          list(filename=paste0("ggplot2/", SHA1, "/", name),
-               fileopt="overwrite",
-               auto_open=FALSE)
-        u <- py$ggplotly(gg, kwargs=kwargs)
-        plotly.png.url <- paste0(u$response$url, ".png")
-        cat(sprintf("\ndownloading %s -> %s\n",
-                    plotly.png.url, plotly.png.file))
-        pngdata <- getURLContent(plotly.png.url)
-        writeBin(as.raw(pngdata), plotly.png.file)
-      ##})
+    py <- plotly("TestBot", "r1neazxo9w")
+    png.exists <- function(){
+      file.exists(plotly.png.file)
+    }
+    try.download <- !png.exists()
+    while (try.download) {
+      kwargs <-
+        list(filename=paste0("ggplot2/", SHA1, "/", name),
+             fileopt="overwrite",
+             auto_open=FALSE)
+      u <- py$ggplotly(gg, kwargs=kwargs)
+      plotly.png.url <- paste0(u$response$url, ".png")
+      cat(sprintf("\ndownloading %s -> %s\n",
+                  plotly.png.url, plotly.png.file))
+      pngdata <- getURLContent(plotly.png.url)
+      writeBin(as.raw(pngdata), plotly.png.file)
+      try.download <- if ( png.exists() ) {
+        FALSE
+      } else {
+        cat("\nDOWNLOAD FAILED, RETRYING\n")
+        Sys.sleep(1)
+        TRUE
+      }
     }
   }
   e <- new.env()
