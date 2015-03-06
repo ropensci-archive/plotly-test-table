@@ -227,6 +227,11 @@ test.plotlys <- function(test.file){
                   plotly.png.url, plotly.png.file))
       pngdata <- getURLContent(plotly.png.url)
       writeBin(as.raw(pngdata), plotly.png.file)
+      ## TODO record status and keep link to plot.ly/~TestBot/etc
+      ## library(httr)
+      ## g <- GET(plotly.png.url, write_disk(plotly.png.file))
+      ## warn_for_status(g)
+      ## if we want to stop the build, use stop_for_status() instead
       try.download <- if ( png.exists() ) {
         FALSE
       } else {
