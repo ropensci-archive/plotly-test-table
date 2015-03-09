@@ -1,6 +1,7 @@
 require(plotly)
 require(testthat)
-require(parallel)
+require(httr)
+##require(parallel)
 
 data.dir <- normalizePath("data")
 
@@ -121,17 +122,28 @@ thumb <- function(png.file){
   stopifnot(length(png.file) == 1)
   if(file.exists(png.file)){
     thumb.file <- sub("[.]png$", "-thumb.png", png.file)
-    if(!file.exists(thumb.file)){
-      ##mcparallel({
+    if(file.exists(thumb.file)){
+      thumb.file
+    }else{
       cmd <- paste("convert", png.file, "-resize 230", thumb.file)
       cat("\n", cmd, "\n", sep="")
-      system(cmd)
-      ##})
+      status <- system(cmd)
+      if(status == 0){
+        thumb.file
+      }else{
+        NA
+      }
     }
-    thumb.file
-  }else{
+  }else{ # no png file so we cant make a thumb.
     NA
   }
+}
+
+### We need to actually attempt conversion here, since sometimes
+### an invalid PNG file gets downloaded, and file.exists() is not
+### able to determine that it is bad.
+png.exists <- function(png.file){
+  !is.na(thumb(png.file))
 }
 
 ### Run all tests in test.file, defining save_outputs in a way which
@@ -207,16 +219,13 @@ test.plotlys <- function(test.file){
   ## data.dir should be a full path.
   save_outputs <- function(gg, name, ...) {
     filesystem_name <- gsub(' ', '-', name)
-    fs.png <- paste0(filesystem_name, ".png")
-    plotly.png.file <- file.path(data.dir, SHA1, fs.png)
-    SHA1.dir <- dirname(plotly.png.file)
+    SHA1.dir <- file.path(data.dir, SHA1)
+    plotly.png.file <- file.path(SHA1.dir, paste0(filesystem_name, ".png"))
+    log.file <- file.path(SHA1.dir, paste0(filesystem_name, ".log"))
     dir.create(SHA1.dir, showWarnings = FALSE, recursive = TRUE)
     py <- plotly("TestBot", "r1neazxo9w")
-    png.exists <- function(){
-      file.exists(plotly.png.file)
-    }
-    try.download <- !png.exists()
-    while (try.download) {
+    download.tries <- if( png.exists(plotly.png.file) ) 0 else 3
+    while (download.tries > 0) {
       kwargs <-
         list(filename=paste0("ggplot2/", SHA1, "/", name),
              fileopt="overwrite",
@@ -225,19 +234,30 @@ test.plotlys <- function(test.file){
       plotly.png.url <- paste0(u$response$url, ".png")
       cat(sprintf("\ndownloading %s -> %s\n",
                   plotly.png.url, plotly.png.file))
-      pngdata <- getURLContent(plotly.png.url)
-      writeBin(as.raw(pngdata), plotly.png.file)
-      ## TODO record status and keep link to plot.ly/~TestBot/etc
-      ## library(httr)
-      ## g <- GET(plotly.png.url, write_disk(plotly.png.file))
-      ## warn_for_status(g)
-      ## if we want to stop the build, use stop_for_status() instead
-      try.download <- if ( png.exists() ) {
-        FALSE
+
+      ## RCURL version:
+      ## pngdata <- getURLContent(plotly.png.url, ssl.verifypeer=FALSE)
+      ## raw.png <- as.raw(pngdata)
+
+      ## httr version:
+      conf <- config(ssl.verifypeer=FALSE)
+      GET.time <- format(Sys.time(), "%Y-%m-%d-%H:%M:%S", tz="GMT")
+      response <- GET(plotly.png.url, config=conf)
+      warn_for_status(response)
+
+      ## append to a log file, 1 line per attempt.
+      log.line <- paste(GET.time, plotly.png.url, response$status_code)
+      cat(log.line, "\n", sep="", file=log.file, append=TRUE)
+      
+      raw.png <- content(response, "raw")
+      writeBin(raw.png, plotly.png.file)
+
+      download.tries <- if ( png.exists(plotly.png.file) ) {
+        0
       } else {
         cat("\nDOWNLOAD FAILED, RETRYING\n")
         Sys.sleep(1)
-        TRUE
+        download.tries - 1
       }
     }
   }
@@ -257,13 +277,17 @@ for(commit.i in 1:nrow(code_commits)){
   code_commit <- code_commits[commit.i, ]
   SHA1 <- code_commit$SHA1
   commit.dir <- file.path("data", SHA1)
-  commit.files <- dir(commit.dir)
   to.run <- list()
   for(test.base in names(test.info)){
     test.names <- test.info[[test.base]]
     if(length(test.names)){
       test.pngs <- paste0(test.names, ".png")
-      if(!all(test.pngs %in% commit.files)){
+      test.paths <- file.path(commit.dir, test.pngs)
+      test.thumbs <- rep(NA, length(test.paths))
+      for(test.i in seq_along(test.paths)){
+        test.thumbs[[test.i]] <- thumb(test.paths[[test.i]])
+      }
+      if(any(is.na(test.thumbs))){
         to.run[[test.base]] <- test.base
       }
     }
@@ -301,16 +325,37 @@ for(column.i in 1:nrow(columns.df)){
   column.info <- columns.df[column.i, ]
   png.file <-
     file.path("..", "..", "data", column.info$dir, paste0(test.names, ".png"))
-  thumb.file <- png.file
+  thumb.file <- 
+    msg <- rep(NA, length(png.file))
   for(thumb.i in seq_along(thumb.file)){
-    thumb.file[[thumb.i]] <- thumb(thumb.file[[thumb.i]])
+    this.png <- png.file[[thumb.i]]
+    if(file.exists(this.png)){
+      thumb.file[[thumb.i]] <- thumb(this.png)
+    }
+  }
+  ## NA in thumb.file means the png does not exist, or if it exists,
+  ## it has some problem and could not be converted into a -thumb.png
+  ## image.
+  for(thumb.i in which(is.na(thumb.file))){
+    this.png <- png.file[[thumb.i]]
+    log.file <- sub("png$", "log", this.png)
+    msg[[thumb.i]] <- if(file.exists(log.file)){
+      ##log.lines <- readLines(log.file)
+      sprintf('could not download .png <a href="%s">log</a>',
+              log.file)
+    }else{
+      "ggplotly error"
+    }
+  }
+  MSG <- function(inside.td){
+    ifelse(is.na(msg), inside.td, msg)
   }
   td.mat[, column.i] <-
-    sprintf('<a href="%s"><img src="%s" /></a>', png.file, thumb.file)
+    MSG(sprintf('<a href="%s"><img src="%s" /></a>', png.file, thumb.file))
   png.mat[, column.i] <-
-    sprintf('<img src="%s" />', png.file)
+    MSG(sprintf('<img src="%s" />', png.file))
   big.mat[, column.i] <-
-    sprintf('<img src="%s" />', png.file)
+    MSG(sprintf('<img src="%s" />', png.file))
 }
 setwd(old.wd)
 

@@ -4,7 +4,9 @@ user,SHA1,label
 #ropensci,c47b8026a456a0ae382011db8ac4cce074fe5b1d,master
 #cpsievert,19e42abde99ef0663e7adcb6a6a70deb6ae1278f,carson-scales-free-bug
 #cpsievert,1d4c09ae8ebef5a1365112a032e7a60b1178e3db,carson-scales-free
-ropensci,618456d6e5d71de59481c5b1681db793a77f26c3,master
-ropensci,0aba7b1b01dd50c43124b5ffbc0840310cae50ef,toby-legend-hiding-old
-#ropensci,fa8ab30229ca0491580b218f32b551738c7adfd2,toby-cookbook
-ropensci,b178933934c57ba8a5efda61dd4ba3e537b6f2eb,toby-legend-hiding
+#ropensci,618456d6e5d71de59481c5b1681db793a77f26c3,master
+#ropensci,0aba7b1b01dd50c43124b5ffbc0840310cae50ef,toby-legend-hiding-old
+ropensci,b178933934c57ba8a5efda61dd4ba3e537b6f2eb,master
+ropensci,fa8ab30229ca0491580b218f32b551738c7adfd2,toby-cookbook-old
+ropensci,07af388fed4266ed8a87fb48ddb711aefcfa7655,toby-cookbook
+

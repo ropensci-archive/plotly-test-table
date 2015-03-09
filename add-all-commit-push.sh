@@ -1,4 +1,4 @@
 #!/bin/bash
-git add tables/*/*.html data/*/*.png
+./git-add.sh
 git commit -a -m "$(date)"
 git push origin gh-pages
