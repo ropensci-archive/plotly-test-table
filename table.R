@@ -1,7 +1,6 @@
 require(plotly)
 require(testthat)
 require(httr)
-##require(parallel)
 
 data.dir <- normalizePath("data")
 
@@ -16,6 +15,7 @@ str_match_perl <- function(string,pattern,...){
   stopifnot(is.character(string))
   stopifnot(is.character(pattern))
   stopifnot(length(pattern)==1)
+  stopifnot(length(string) > 0)
   parsed <- regexpr(pattern,string,perl=TRUE,...)
   captured.text <- substr(string,parsed,parsed+attr(parsed,"match.length")-1)
   captured.text[captured.text==""] <- NA
@@ -86,6 +86,13 @@ commit.line.pattern <-
          " ",
          "(?<subject>.*)")
 
+md5.pattern <-
+  paste0("(?<md5>[0-9a-f]{32})",
+         "\\s+",
+         ".*/",
+         "(?<test>.*)",
+         "[.][a-z]+")
+
 ### Parse a git log character vector, returning data.frame.
 commits <- function(git.lines){
   stopifnot(is.character(git.lines))
@@ -116,8 +123,12 @@ print.commits <- function(commits){
 }
 
 ### Use convert on the command line to convert file.png to
-### file-thumb.png.
-thumb <- function(png.file){
+### file-thumb.png, for each of the png files in png.file.vec.
+thumb <- function(png.file.vec){
+  stopifnot(is.character(png.file.vec))
+  sapply(png.file.vec, thumb.one)
+}
+thumb.one <- function(png.file){
   stopifnot(is.character(png.file))
   stopifnot(length(png.file) == 1)
   if(file.exists(png.file)){
@@ -283,10 +294,7 @@ for(commit.i in 1:nrow(code_commits)){
     if(length(test.names)){
       test.pngs <- paste0(test.names, ".png")
       test.paths <- file.path(commit.dir, test.pngs)
-      test.thumbs <- rep(NA, length(test.paths))
-      for(test.i in seq_along(test.paths)){
-        test.thumbs[[test.i]] <- thumb(test.paths[[test.i]])
-      }
+      test.thumbs <- thumb(test.paths)
       if(any(is.na(test.thumbs))){
         to.run[[test.base]] <- test.base
       }
@@ -314,7 +322,8 @@ td.mat <-
   matrix(NA, length(test.names), nrow(columns.df))
 rownames(td.mat) <- test.names
 colnames(td.mat) <- columns.df$label
-png.mat <- big.mat <- td.mat
+master.diffs <- png.mat <- big.mat <- td.mat
+md5.mats <- list(json=td.mat, png=td.mat)
 
 table.dir <- file.path("tables", test.SHA1)
 dir.create(table.dir, recursive=TRUE)
@@ -325,39 +334,74 @@ for(column.i in 1:nrow(columns.df)){
   column.info <- columns.df[column.i, ]
   png.file <-
     file.path("..", "..", "data", column.info$dir, paste0(test.names, ".png"))
-  thumb.file <- 
-    msg <- rep(NA, length(png.file))
-  for(thumb.i in seq_along(thumb.file)){
-    this.png <- png.file[[thumb.i]]
-    if(file.exists(this.png)){
-      thumb.file[[thumb.i]] <- thumb(this.png)
+  thumb.file <- thumb(png.file)
+  for(suffix in names(md5.mats)){
+    md5.file <- sub("png$", suffix, png.file)
+    md5.cmd <- paste("md5sum", paste(md5.file, collapse=" "))
+    md5.lines <- system(md5.cmd, intern=TRUE)
+    if(length(md5.lines)){
+      md5.parsed <- str_match_perl(md5.lines, md5.pattern)
+      test.name <- md5.parsed[, "test"]
+      md5.mats[[suffix]][test.name, column.i] <- md5.parsed[, "md5"]
     }
   }
   ## NA in thumb.file means the png does not exist, or if it exists,
   ## it has some problem and could not be converted into a -thumb.png
   ## image.
-  for(thumb.i in which(is.na(thumb.file))){
-    this.png <- png.file[[thumb.i]]
-    log.file <- sub("png$", "log", this.png)
-    msg[[thumb.i]] <- if(file.exists(log.file)){
-      ##log.lines <- readLines(log.file)
-      sprintf('could not download .png <a href="%s">log</a>',
-              log.file)
-    }else{
-      "ggplotly error"
-    }
-  }
-  MSG <- function(inside.td){
-    ifelse(is.na(msg), inside.td, msg)
+  log.file <- sub("png$", "log", png.file)
+  log.href <- sprintf('<a href="%s">log</a>', log.file)
+  msg <-
+    ifelse(is.na(thumb.file),
+           ifelse(file.exists(log.file),
+                  paste('could not download .png', log.href),
+                  "ggplotly error"),
+           NA)
+  img.or.msg <- function(img){
+    ifelse(is.na(msg), img, msg)
   }
   td.mat[, column.i] <-
-    MSG(sprintf('<a href="%s"><img src="%s" /></a>', png.file, thumb.file))
-  png.mat[, column.i] <-
-    MSG(sprintf('<img src="%s" />', png.file))
+    img.or.msg(sprintf('<a href="%s"><img src="%s" /></a>',
+                       png.file, thumb.file))
+  png.mat[, column.i] <- # 1 row/test per details page.
+    paste0(img.or.msg(sprintf('<img src="%s" />', png.file)),
+           "<br />")
   big.mat[, column.i] <-
-    MSG(sprintf('<img src="%s" />', png.file))
+    img.or.msg(sprintf('<img src="%s" />', png.file))
 }
 setwd(old.wd)
+
+## are there any differences between the md5 values of the plotly
+## files?
+master.diffs[] <- ""
+ignore.cols <- c("master", "ggplot2")
+other.cols <-
+  colnames(master.diffs)[!colnames(master.diffs) %in% ignore.cols]
+## First, check if master files exist.
+for(suffix in names(md5.mats)){
+  master.md5 <- md5.mats[[suffix]][, "master"]
+  no.file <- is.na(master.md5)
+  to.add <- paste0("no-", suffix, "-file")
+  master.diffs[no.file, "master"] <-
+    paste(master.diffs[no.file, "master"], to.add)
+}
+## Second, check if there are any differences or missing files on
+## other branches.
+for(other.col in other.cols){
+  for(suffix in names(md5.mats)){
+    md5.mat <- md5.mats[[suffix]]
+    messages <-
+      list("%s-md5-diff"=md5.mat[, other.col] != md5.mat[, "master"],
+           "no-%s-file"=is.na(md5.mat[, other.col]))
+    for(tmp in names(messages)){
+      bad.i <- which(messages[[tmp]])
+      msg <- sprintf(tmp, suffix)
+      master.diffs[bad.i, other.col] <-
+        paste(master.diffs[bad.i, other.col], msg)
+    }
+  }
+}
+is.diff <- apply(master.diffs, 2, function(x)grepl("diff", x))
+any.diff <- apply(is.diff, 1, any)
 
 library(xtable)
 for(test.name in rownames(td.mat)){
@@ -368,11 +412,12 @@ for(test.name in rownames(td.mat)){
   print(xt, type="html", file=html.file, sanitize.text.function=identity,
         include.rownames=FALSE, include.colnames=FALSE)
 }
-## Make big.html which shows big images directly.
+## Make big.html which shows big images directly, only for rows that
+## have differences.
 big.df <-
   data.frame(test=rownames(td.mat),
              big.mat)
-xt <- xtable(big.df)
+xt <- xtable(big.df[any.diff, ])
 print(xt, type="html", file=file.path(table.dir, "big.html"),
       sanitize.text.function=identity,
       include.rownames=FALSE)
@@ -405,15 +450,15 @@ for(index.file in index){
   column.labels[[index.file]] <- paste(label, collapse = "<br />")
 }
 table.commits$column.labels <- column.labels
-table.commits$thumbs <- sprintf('<a href="%s">thumbs</a>', index)
+table.commits$all <- sprintf('<a href="%s">thumbs</a>', index)
 index.big <- paste0("tables/", table.SHA1, "/big.html")
-table.commits$big <- sprintf('<a href="%s">big</a>', index.big)
+table.commits$differences <- sprintf('<a href="%s">big</a>', index.big)
 table.commits$commit.gmt.time <- format(table.commits$gmt.time)
 table.commits$commit.subject <- table.commits$subject
 table.commits
 df <- data.frame(table.commits)[, c("commit.gmt.time",
                         "column.labels",
-                        "thumbs", "big",
+                        "all", "differences",
                         "commit.subject")]
 
 ## Sort table so that the most recent commit is on top.
