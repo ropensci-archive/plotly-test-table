@@ -345,30 +345,7 @@ for(column.i in 1:nrow(columns.df)){
       md5.mats[[suffix]][test.name, column.i] <- md5.parsed[, "md5"]
     }
   }
-  ## NA in thumb.file means the png does not exist, or if it exists,
-  ## it has some problem and could not be converted into a -thumb.png
-  ## image.
-  log.file <- sub("png$", "log", png.file)
-  log.href <- sprintf('<a href="%s">log</a>', log.file)
-  msg <-
-    ifelse(is.na(thumb.file),
-           ifelse(file.exists(log.file),
-                  paste('could not download .png', log.href),
-                  "ggplotly error"),
-           NA)
-  img.or.msg <- function(img){
-    ifelse(is.na(msg), img, msg)
-  }
-  td.mat[, column.i] <-
-    img.or.msg(sprintf('<a href="%s"><img src="%s" /></a>',
-                       png.file, thumb.file))
-  png.mat[, column.i] <- # 1 row/test per details page.
-    paste0(img.or.msg(sprintf('<img src="%s" />', png.file)),
-           "<br />")
-  big.mat[, column.i] <-
-    img.or.msg(sprintf('<img src="%s" />', png.file))
 }
-setwd(old.wd)
 
 ## are there any differences between the md5 values of the plotly
 ## files?
@@ -402,6 +379,36 @@ for(other.col in other.cols){
 }
 is.diff <- apply(master.diffs, 2, function(x)grepl("diff", x))
 any.diff <- apply(is.diff, 1, any)
+
+for(column.i in 1:nrow(columns.df)){
+  log.file <- sub("png$", "log", png.file)
+  ## TODO: parse the log file and add plotly URL(s).
+  log.href <- sprintf('<a href="%s">log</a>', log.file)
+  ## NA in thumb.file means the png does not exist, or if it exists,
+  ## it has some problem and could not be converted into a -thumb.png
+  ## image.
+  msg <- # to display instead of the image.
+    ifelse(is.na(thumb.file),
+           ifelse(file.exists(log.file),
+                  paste('could not download .png', log.href),
+                  "ggplotly error"),
+           NA)
+  img.or.msg <- function(img){
+    ifelse(is.na(msg), img, msg)
+  }
+  error.str <- master.diffs[, column.i]
+  error.html <- paste("<br />", error.str)
+  td.mat[, column.i] <-
+    img.or.msg(sprintf('<a href="%s"><img src="%s" /></a>',
+                       png.file, thumb.file))
+  png.mat[, column.i] <- # 1 row/test per details page.
+    paste0(img.or.msg(sprintf('<img src="%s" />', png.file)),
+           error.html)
+  big.mat[, column.i] <-
+    paste0(img.or.msg(sprintf('<img src="%s" />', png.file)),
+           error.html)
+}
+setwd(old.wd)
 
 library(xtable)
 for(test.name in rownames(td.mat)){
