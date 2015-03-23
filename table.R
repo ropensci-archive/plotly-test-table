@@ -334,7 +334,6 @@ for(column.i in 1:nrow(columns.df)){
   column.info <- columns.df[column.i, ]
   png.file <-
     file.path("..", "..", "data", column.info$dir, paste0(test.names, ".png"))
-  thumb.file <- thumb(png.file)
   for(suffix in names(md5.mats)){
     md5.file <- sub("png$", suffix, png.file)
     md5.cmd <- paste("md5sum", paste(md5.file, collapse=" "))
@@ -387,6 +386,7 @@ for(column.i in 1:nrow(columns.df)){
   log.file <- sub("png$", "log", png.file)
   ## TODO: parse the log file and add plotly URL(s).
   log.href <- sprintf('<a href="%s">log</a>', log.file)
+  thumb.file <- thumb(png.file)
   ## NA in thumb.file means the png does not exist, or if it exists,
   ## it has some problem and could not be converted into a -thumb.png
   ## image.
