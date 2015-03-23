@@ -381,6 +381,9 @@ is.diff <- apply(master.diffs, 2, function(x)grepl("diff", x))
 any.diff <- apply(is.diff, 1, any)
 
 for(column.i in 1:nrow(columns.df)){
+  column.info <- columns.df[column.i, ]
+  png.file <-
+    file.path("..", "..", "data", column.info$dir, paste0(test.names, ".png"))
   log.file <- sub("png$", "log", png.file)
   ## TODO: parse the log file and add plotly URL(s).
   log.href <- sprintf('<a href="%s">log</a>', log.file)
