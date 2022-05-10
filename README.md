@@ -1,1 +1,5 @@
-[![Project Status: Moved to https://github.com/cpsievert/plotly-test-table – The project has been moved to a new location, and the version at that location should be considered authoritative.](http://www.repostatus.org/badges/latest/moved.svg)](http://www.repostatus.org/#moved) to [https://github.com/cpsievert/plotly-test-table](https://github.com/cpsievert/plotly-test-table)
+# plotly-test-table
+
+[![Project Status: Abandoned](https://www.repostatus.org/badges/latest/abandoned.svg)](https://www.repostatus.org/#abandoned)
+
+This repository has been archived. The former README is now in [README-NOT.md](README-NOT.md).
